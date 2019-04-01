@@ -1,0 +1,331 @@
+---
+title: '3장 : 데이터 변형'
+author: "huimin"
+date: "2019년 3월 19일"
+output: rmarkdown::github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#필요 패키지 로딩하기
+```{r}
+library(nycflights13) # flights 데이터 프레임을 이용하기 위해서
+library(tidyverse)
+```
+
+
+#준비하기
+**티블(tibble)**은 **데이터프레임**이지만, tidyverse에서 더 잘 작동하도록 조정된 형식이다.<br>
+
+
+**콘솔창 상에서의 출력물 형식표시**<br>
+
+
+|형식|의미|
+|:-:|:-:|
+|int|정수|
+|dbl|더블형 또는 실수|
+|chr|문자형 벡터 혹은 문자열|
+|dttm|데이트-타임형(날짜+시간)|
+|lgl|TRUE 나 FALSE만 포함하는 논리형|
+|fctr|팩터형|
+|date|데이트형|
+
+
+#dplyr 기초
+**핵심 함수** 기능 설명<br>
+
+
+|함수명|기능 설명|
+|:-:|:-:|
+|filter()|값을 기준으로 행 선택하기|
+|select()|이름으로 열(변수)을 선택하기|
+|mutate()|기존 변수들의 함수로 새로운 변수를 생성하기|
+|arrange()|행을 재정렬하기|
+|summarize()|하나의 요약값으로 합치기|
+|group_by()|그룹마다 동작하도록 범위 지정. 위 함수들과 함께 사용할 수 있음.|
+
+
+위의 함수들은 다음과 같은 공통점이 있다.<br>
+(1) 첫 인수는 데이터프레임이다.<br>
+(2) 그 이후의 인수들은 따옴표없이 변수 이름을 사용한다.<br>
+(3) 데이터프레임을 반환한다.<br>
+
+
+#filter()로 행 필터링하기
+```{r}
+dplyr::filter(flights, month == 1, day == 1)
+
+# 참고 : near()함수를 통한 근사치 비교하기
+1/49*49 == 1
+near(1 / 49 * 49, 1)
+
+
+#,를 하면 &(and)역할, |를 사용하면 or역할
+dplyr::filter(flights, month == 11 | month == 12)
+
+
+# %in% : 집합에 포함되는 것만 반환
+dplyr::filter(flights, month %in% c(11,12))
+
+
+# 아래의 두 코드는 같은 뜻이다. (드모르간 법칙 적용됨)
+filter(flights, !(arr_delay > 120 | dep_delay > 120))
+filter(flights, arr_delay <= 120, dep_delay <= 120)
+
+
+# filter()는 조건이 TRUE인 열만 포함한다. FALSE와 NA값들은 제외한다. 결측값을 남기려면 명시적으로 요청한다.
+df <- tibble(x = c(1, NA, 3))
+
+filter(df, x>1)
+filter(df, is.na(x) | x>1)
+```
+
+
+##연습문제
+```{r}
+# 2시간 이상 도착 지연
+dplyr::filter(flights, dep_delay > 2)
+
+# IAH 또는 HOU으로 운항
+dplyr::filter(flights, dest == "IAH" | dest == "HOU")
+
+# United(UA), American(AA), Delta(DL)이 운항
+dplyr::filter(flights, carrier %in% c("UA","AA","DL"))
+
+# between() 함수의 용법 : 7보다 같거나 크고 9보다 작거나 같은 것 TRUE
+between(1:12, 7, 9)
+
+# NA에 대하여
+NA^0
+NA|TRUE
+FALSE&NA
+NA*0
+```
+
+
+#arrange()로 행 정렬하기
+arrange()는 행을 선택하는 대신, **순서를 바꾼다는 것**만 제외하고는 filter()와 유사하게 작동한다.<br>
+데이터프레임과 정렬기준으로 지정할 열 이름 집합을 입력으로 한다.<br>
+**결측값(NA)은 마지막에 정렬된다.**
+```{r}
+# 기본 용법
+arrange(flights, year, month, day)
+
+
+# desc()을 통한 내림차순 정렬
+arrange(flights, year, desc(month))
+
+
+# 모든 결측값을 앞에 오도록 설정하기
+arrange(flights, desc(is.na(dep_time)))
+```
+
+
+#select()로 열 선택하기
+|select안에서 사용할 수 있는 함수|기능 설명|
+|:-:|:-:|
+|starts_with("char")|해당 문자로 시작하는 변수에 매칭|
+|ends_with("char")|해당 문자로 끝나는 변수에 매칭|
+|contains("char")|해당 문자를 포함하는 변수에 매칭|
+|matches("(.)\\\\1")|정규표현식에 매칭되는 변수 선택|
+|num_range("x", 1:3)|x1, x2, x3에 매칭|
+```{r}
+# 기본 용법
+select(flights, year, month, day)
+
+
+# 슬라이싱 가능
+select(flights, year:day)
+
+
+# 선택 열만 제외하기
+select(flights, -c(year:day))
+```
+
+
+select()의 변형인 **rename()**을 사용하면 명시적으로 **언급하지 않은 모든 변수를 유지**한다.
+```{r}
+# tailnum이라는 변수를 tail_num이라는 이름으로 바꿈.
+rename(flights, tail_num = tailnum)
+
+
+# select()에서도 언급하지 않은 변수를 유지하는 방법
+select(flights, time_hour, air_time, everything())
+```
+
+
+##연습문제
+```{r}
+# select()호출에서 한 변수 이름을 여러 번 포함할 경우
+select(flights, year, year)
+
+
+# one_of(): Matches variable names in a character vector.
+vars <- c("year","month","day")
+select(flights, one_of(vars))
+```
+
+
+#mutate()로 새로운 변수 추가하기
+새로운 열을 항상 데이터셋 마지막에 추가한다.<br>
+**transmute()**함수의 경우, 언급한 것 이외의 변수는 제외한다.
+```{r}
+# 새로운 샘플객체
+sample.flights <- select(flights,
+                         year:day,
+                         ends_with("delay"),
+                         distance,
+                         air_time)
+
+head(sample.flights)
+
+
+# mutate를 통해서 새로운 변수 추가해보기
+dplyr::mutate(sample.flights,
+              gain = arr_delay - dep_delay,
+              speed = distance / air_time * 60,
+              hours = air_time / 60,
+              gain_per_hour = gain / hours) # 방금 생성한 열을 참조할 수 있음
+
+
+# 언급한 변수만 남기고 나머지는 삭제하는 transmute()
+dplyr::transmute(flights,
+                 gain = arr_delay - dep_delay,
+                 speed = distance / air_time * 60,
+                 hours = air_time / 60,
+                 gain_per_hour = gain / hours)
+```
+
+
+##유용한 생성 함수
+mutate()와 함께 자주 사용되는 함수들을 소개한다.<br>
+**오프셋**
+
+
+|함수명|기능|
+|:-:|:-:|
+|lead()|데이터를 왼쪽에서 당긴다. 가장 끝 행은 NA가 된다.|
+|lag()|데이터를 오른쪽에서 당긴다. 가장 첫 행이 NA가 된다.|
+
+
+**누적 및 롤링 집계**
+
+
+|함수명|기능|
+|:-:|:-:|
+|cumsum()|누적 합계|
+|cumprod()|누적 곱셈|
+|cummin()|누적 최솟값 (계속해서 최솟값을 갱신해나감)|
+|cummax()|누적 최댓값 (계속해서 최댓값을 갱신해나감)|
+|cummean()|누적 평균|
+
+
+**랭킹**<br>
+기본적으로 min_rank()함수를 이용한다.
+
+
+이외의 **논리형 비교 연산자(<,<=,>,>=,!=)**와 **산술 연산자**, **모듈러 연산(%/%, %%)**, **로그** 등을 자유롭게 사용할 수 있다. 
+```{r}
+# 누적 최솟값과 누적 최댓값 예시
+dplyr::mutate(sample.flights,
+              cum_min = cummin(dep_delay),
+              cum_max = cummax(dep_delay))
+
+# 랭킹 예시
+dplyr::mutate(sample.flights,
+              ranking = min_rank(dep_delay),
+              rvs_ranking = min_rank(desc(dep_delay)))
+```
+
+
+#summarize()로 그룹화 요약하기
+데이터프레임을 하나의 행으로 축약할 수 있는 함수다.<br>
+**group_by()**함수와 같이 사용하면, 매우 유용하다.<br>
+group_by를 통해서 **분석의 단위를 전체 데이터셋에서 개별 그룹으로 변경**할 수 있는데, 이를 통하여 그룹마다 함수를 적용할 수 있는 것이다.
+```{r}
+# summarise의 기본 용법 탐색
+dplyr::summarise(flights,
+                 n = n(),
+                 delay = mean(dep_delay, na.rm = TRUE))
+
+
+# summarise와 group_by의 활용
+flights %>% 
+  dplyr::group_by(year, month, day) %>% 
+  dplyr::summarise(n = n(),
+                   delay = mean(dep_delay, na.rm = TRUE))
+
+
+# 그래프도 그려보기
+flights %>% 
+  dplyr::group_by(year, month, day) %>% 
+  dplyr::summarise(n = n(),
+                   delay = mean(dep_delay, na.rm = TRUE)) %>% 
+  ggplot(mapping = aes(x = n, y = delay)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(se = FALSE,
+              color = "red")
+```
+
+
+#유용한 요약 함수들
+**위치 측정값**<br>
+median() : 중위수<br>
+**산포 측정값**<br>
+sd() : 평균제곱편차, 표준편차<br>
+IQR() : 사분위 범위<br>
+mad() : 이상값이 있을 때 더 유용할 수 있는 중위절대편차<br>
+**순위 측정값**<br>
+quntile(x, 0.25) : 25%보다는 크고 나머지 75%보다는 작은 값을 찾는다.<br>
+**자리(position) 측정값**<br>
+first(), last(), nth(x, 2)<br>
+**카운트**<br>
+n() : 인수가 없고 현재 그룹의 크기를 반환<br>
+n_distinct() : 유일값 개수를 카운트하여 반환<br>
+**그룹화 해제하기**<br>
+ungroup()
+```{r}
+# first, last 사용 예시
+flights %>% 
+  dplyr::select(year, month, day, dep_time) %>% 
+  dplyr::filter(is.na(dep_time) == FALSE) %>% 
+  dplyr::group_by(year, month, day) %>% 
+  dplyr::summarise(first_dep = first(dep_time),
+                   last_dep = last(dep_time))
+
+
+# count 예시
+flights %>% 
+  dplyr::select(year, month, day, dep_time) %>% 
+  dplyr::filter(is.na(dep_time) == FALSE) %>% 
+  dplyr::group_by(year, month, day) %>% 
+  dplyr::count(month)
+
+
+# count 예시2 : 비행한 마일 수를 카운트하기
+flights %>% 
+  dplyr::count(tailnum, wt = distance)
+
+
+# ungroup 예시
+flights %>% 
+  dplyr::group_by(year, month, day) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::summarise(n = n())
+```
+
+
+#그룹화 뮤테이트와 필터링
+그룹화는 summarize()와 조합하여 사용하면 가장 유용하지만 **mutate()**와 **filter()**로 편리한 작업을 할 수도 있다.<br>
+```{r}
+# 그룹화 후, 필터링의 예시
+flights %>%
+  dplyr::select(year, month, day, arr_delay) %>% 
+  dplyr::group_by(year, month, day) %>% 
+  filter(rank(desc(arr_delay)) < 10)
+```
