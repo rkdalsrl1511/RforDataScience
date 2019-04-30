@@ -1,0 +1,144 @@
+---
+title: '7장 : tibble로 하는 티블'
+author: "huimin"
+date: "2019년 4월 29일"
+output: rmarkdown::github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#기초 설정하기
+```{r}
+library(tidyverse)
+```
+
+#들어가기
+
+
+**티블도 데이터프레임**이지만, 좀 더 편리하게 사용할 수 있도록 오래된 동작들이 수정되었다. 기존의 코드를 손상시키지 않기 위해서 패키지의 형태로 업데이트 되었다.
+
+
+tidyverse패키지에 포함되어 있는 tibble패키지를 통해서 생성한다.
+
+
+#티블 생성하기
+
+|함수|설명|
+|:-:|:-:|
+|as_tibble(dataframe)|데이터프레임을 티블로 전환|
+|tibble()|티블 생성하기|
+|tribble()|적은 양의 데이터를 읽기 쉬운 형태로 배치하는 티블|
+
+```{r}
+# 기존 데이터프레임을 티블로 전환하기
+as_tibble(iris)
+
+
+# 티블은 아래처럼, 방금 만든 변수를 참조할 수도 있다.
+tibble(x = 1:5, y = 1, z = x^2+y)
+
+
+# 티블은 유효하지 않은 이름(비구문론적 이름)을 열 이름으로 가질 수 있다.
+# 단, 역따옴표로 감싸야한다.
+tb <- tibble(`:)` = "스마일",
+             ` ` = "공백",
+             `2000` = "숫자")
+
+tb
+
+# tribble을 통해서 티블 생성하기
+tribble(~x, ~y, ~z,
+        "a", 2, 3.6,
+        "b", 1, 8.5)
+```
+
+
+#티블 vs 데이터프레임
+
+
+**화면 출력**과 **서브셋하기**에서 차이가 있다.<br>
+인덱싱과 슬라이싱 등은 모두 데이터프레임과 사용법이 동일하다.
+
+
+##화면 출력
+티블에서는 대용량 데이터 작업을 쉽게 할 수 있는 방법이 존재한다.<br>
+option()을 설정하여 기본 출력 동작을 제어할 수 있다.
+
+
+|함수|설명|
+|:-:|:-:|
+|option(tibble.print_max = n, tibble.print_min = m)|m행 이상인 경우, n행만 출력한다.|
+|option(dplyr.print_min = Inf)|모든 행을 항상 표시|
+|option(tibble.width = Inf)|모든 열을 출력|
+
+```{r}
+tibble(a = lubridate::now() + runif(1e3)*86400,
+       b = lubridate::today() + runif(1e3)*30,
+       c = 1:1e3,
+       d = runif(1e3),
+       e = sample(letters, 1e3, replace = TRUE))
+
+# 데이터프레임에서는 print를 통해서 width = Inf를 하면 모든 열을 표시
+diamonds %>%
+  print(n=10, width = Inf)
+```
+
+
+##서브셋하기
+
+
+데이터프레임에서 변수 하나를 추출하려면 새로운 도구인 $및 [[이 필요하다. [[는 이름이나 위치로 추출할 수 있다.<br>
+$는 이름으로만 추출할 수 있지만 타이핑을 덜 해도 된다.
+
+
+```{r}
+df <- tibble(x = runif(5),
+             y = rnorm(5))
+
+# 이름으로 추출
+df$x
+# 티블은 2중 대괄호를 넣지 않으면, 티블로 반환한다. 리스트처럼
+df[["x"]]
+# 위치로 추출
+df[[1]]
+
+# 파이프를 사용하여 추출
+df %>% .$x
+df %>% .[["x"]]
+```
+
+
+##이전코드와 상호작용
+
+
+오래된 함수는 티블에서 작동하지 않는다. 이러한 함수를 사용하려면 **as.data.frame()**을 사용하여 티블을 data.frame으로 되돌려야 한다.<br>
+
+
+##연습문제
+```{r}
+# 데이터프레임과 티블 비교하기
+mtcars
+as.tibble(mtcars)
+
+tb <- tibble(abc = 1,
+             xyz = "a")
+
+tb$x
+tb[["xyz"]]
+tb[c("abc","xyz")]
+
+# 비구문론적 이름 참조하기
+tb <- tibble(`1` = 1:3,
+             `2` = 4:6,
+             `4` = `1` / `2`)
+
+# 열의 이름을 바꾸기
+colnames(tb) <- c("one","two","three")
+
+
+# tibble::enframe의 의미
+# 두 개의 원자벡터 혹은 리스트를 하나 또는 두 개의 열 데이터프레임으로 변환한다. 
+tibble::enframe(c(a=5,b=7))
+```
