@@ -1,0 +1,174 @@
+---
+title: '19장 : 모델 생성'
+author: "huimin"
+date: '2019 8 17 '
+output: rmarkdown::github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# 기초 설정
+```{r}
+library(tidyverse)
+library(readr)
+library(modelr)
+library(hexbin)
+```
+
+
+# 1. 들어가기
+
+
+이번 장에서는 실제 데이터에 중점을 두고 데이터에 대한 이해를 돕기 위해 점진적으로 모델을 생성하는 방법을 보여준다.
+
+
+**전 장과 마찬가지로 데이터의 패턴과 잔차로 분리한 모델을 들여다보면서 생각해볼 수 있는 점들을 활용할 것이다.**
+
+
+데이터와 머릿속의 내재적인 지식을 정량적 모델의 명시적인 지식으로 전환하는 것이 우리의 목표이다. 이렇게 할 경우 새로운 도메인에 쉽게 적용할 수 있으며 다른 도메인에서 쉽게 사용하도록 해줄 것이다.
+
+
+많은 기계학습 접근법은 단순히 모델의 예측력을 놓히는 것에만 초점을 맞춘다. 이 접근 방식은 블랙박스 모델을 생성하는 경향이 있어 모델이 예측값을 생성하는 데에는 훌륭하지만, 그 이유에 대해서는 알 수 없다. 이는 실제 지식을 모델에 적용하기가 어렵다.
+
+
+# 2. 낮은 품질의 다이아몬드가 더 비싼 이유는 무엇인가?
+
+
+이 내용은 이미 전 장에서 살펴본 적이 있다. 낮은 품질의 다이아몬드(커팅, 색상, 투명도)가 더 높은 가격을 가진다는 것을 확인했다.
+
+
+```{r}
+ggplot(diamonds, aes(cut, price)) + geom_boxplot()
+ggplot(diamonds, aes(color, price)) + geom_boxplot()
+ggplot(diamonds, aes(clarity, price)) + geom_boxplot()
+```
+
+
+## 2.1 가격과 캐럿
+
+
+중요한 혼란 변수인 다이아몬드의 무게(carat)가 존재하기 때문에 품질이 낮은 다이아몬드가 가격이 더 높은 것처럼 보인다.
+
+
+```{r}
+ggplot(diamonds, aes(carat, price)) +
+  geom_hex(bins = 50)
+```
+
+carat의 효과를 분리하는 모델을 적합하여 다이아몬드의 다른 속성이 상대적으로 price에 어떻게 영향을 주는지 쉽게 알 수 있다.
+
+
+- 2.5 캐럿보다 작은 다이아몬드(데이터의 99.7%)로 한정한다.
+- **캐럿과 가격 변수를 로그 변환한다.(패턴이 더 두드러진다.)**
+
+
+```{r}
+diamonds2 <- diamonds %>% 
+  filter(carat <= 2.5) %>%
+  mutate(lprice = log2(price),
+         lcarat = log2(carat))
+
+
+ggplot(diamonds2, aes(lcarat, lprice)) +
+  geom_hex(bins = 50)
+```
+
+
+다음 단계로 넘어가서, 강한 선형 패턴을 제거해보자.
+
+
+```{r}
+mod_diamonds <- lm(lprice ~ lcarat, data = diamonds2)
+
+grid <- diamonds2 %>% 
+  data_grid(carat = seq_range(carat, 20)) %>% 
+  mutate(lcarat = log2(carat)) %>% 
+  add_predictions(mod_diamonds, "lprice") %>% 
+  mutate(price = 2 ^ lprice)
+
+
+# 이제보니 aes 또한 광역 심미성으로 설정하면, 데이터가 다르더라도 서로 다른 데이터 내의 동일한 이름의 변수를 이용한다.
+ggplot(diamonds2, aes(carat, price)) +
+  geom_hex(bins = 50) +
+  geom_line(data = grid, color = "red", size = 1)
+```
+
+
+위의 그래프를 본다면, 크기가 큰 다이아몬드는 예측한 값보다 훨씬 저렴하다. 그것은 아마 데이터셋에는 19000달러가 넘는 다이아몬드가 존재하지 않기 때문이다.
+
+
+이제 강한 선형 패턴을 제대로 제거했는지 확인하기 위해 잔차를 살펴볼 수 있다.
+
+
+```{r}
+diamonds2 <- diamonds2 %>% 
+  add_residuals(mod_diamonds, "lresid")
+
+ggplot(data = diamonds2, aes(lcarat, lresid)) +
+  geom_hex(bins = 50)
+
+ggplot(diamonds2, aes(cut, lresid)) + geom_boxplot()
+ggplot(diamonds2, aes(color, lresid)) + geom_boxplot()
+ggplot(diamonds2, aes(clarity, lresid)) + geom_boxplot()
+```
+
+
+잔차를 통해 비교한 결과, 예상했던 변수들의 관계를 알 수 있다.
+
+
+## 2.2 더 복잡한 모델
+
+
+color, cut 및 clarity 변수를 모델에 포함하여 이 세 개의 범주형 변수의 효과를 나타내어 더 명시적인 모델을 만들 수도 있다.
+
+
+```{r}
+mod_diamonds2 <- lm(lprice ~ lcarat + color + cut + clarity,
+                    data = diamonds2)
+
+grid <- diamonds2 %>% 
+  data_grid(cut, .model = mod_diamonds2) %>% 
+  add_predictions(mod_diamonds2)
+
+grid
+
+ggplot(data = grid, aes(cut, pred)) +
+  geom_point()
+```
+
+
+**위의 코드와 결과를 통해 알 수 있듯이, 명시적으로 제공되지 않은 변수를 모델이 필요로 한다면 data_grid 함수가 자동으로 대표적인 값으로 채운다.**
+
+
+연속형 변수의 경우 **중앙값**을 사용하고, 범주형 변수의 경우 **최빈값**을 사용한다.
+
+
+```{r}
+diamonds2 <- diamonds2 %>% 
+  add_residuals(mod_diamonds2, "lresid2")
+
+ggplot(diamonds2, aes(lcarat, lresid2)) +
+  geom_hex(bins = 50)
+```
+
+
+위 플롯은 잔차의 값이 큰 다이아몬드가 일부 존재한다는 것을 보여준다. 잔차가 2라는 것은 다이아몬드의 가격이 예상했던 가격의 4배라는 것을 뜻한다. 비정상적인 관측값을 개별적으로 탐색하면 유용할 때가 많다.
+
+
+```{r}
+diamonds2 %>% 
+  filter(abs(lresid2) > 1) %>% 
+  add_predictions(mod_diamonds2) %>% 
+  mutate(pred = round(2 ^ pred)) %>% 
+  select(price, pred, carat:table, x:z) %>% 
+  arrange(price)
+```
+
+
+# 3. 일일 운항 횟수에 어떤 영향이 있는가?
+
+
+항공편 데이터셋에 대해 비슷한 과정을 진행해보자. 생략. 궁금하면 367페이지부터 확인
